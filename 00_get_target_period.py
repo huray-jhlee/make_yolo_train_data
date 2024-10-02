@@ -1,6 +1,7 @@
 import os
 import cv2
 import pickle
+import exifread
 import threading
 import numpy as np
 import pandas as pd
@@ -30,6 +31,25 @@ def save_datas(data_list):
         
         # save_label
         np.savetxt(new_label_path, labels, fmt=["%d", "%.6f", "%.6f", "%.6f", "%.6f"])
+
+def get_orientation(img_path):
+    with open(img_path, "rb") as f:
+        tags = exifread.process_file(f)
+        orientation_tag = "Image Orientation"
+        if orientation_tag in tags:
+            return tags[orientation_tag].values[0]
+        else :
+            return 1
+
+def rotate_img_based_on_orientation(img, orientation):
+    if orientation == 3:
+        return cv2.rotate(img, cv2.ROTATE_180)
+    elif orientation == 6:
+        return cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+    elif orientation == 8:
+        return cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    else :
+        return img
 
 def main(args):
     # 특정 period로 dataframe 쿼리
@@ -74,17 +94,22 @@ def main(args):
     
     print(f"처리할 데이터  : {len(df)}")
     
+    # limit_cnt = 10
+    # cnt = 0
     
     for _, row in tqdm(df.iterrows(), total=len(df)):
         idx = row['idx']
         period = row['period']
         
         # img_path
-        img_path = row['origin_path'].replace("/data3/", "/data/")
+        # img_path = row['origin_path'].replace("/data3/", "/data/")
+        img_path = row['origin_path'].replace("/data/", "/data3/")
         if not os.path.exists(img_path):
             continue
         
         img = cv2.imread(img_path)
+        rot = get_orientation(img_path)
+        img = rotate_img_based_on_orientation(img, rot)
         height, width, _ = img.shape
         
         # label check
@@ -106,7 +131,6 @@ def main(args):
         else:
             bbox_info = splited_bbox_info[:4]  # 맨 마지막에 score가 들어있는 경우...
         
-        10
         yolo_bbox = convert_to_yolo_format(bbox_info, width, height)
         
         data_dict[img_path]["file_key"].append((period, idx))
@@ -145,8 +169,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument("--periods", "-p", type=str, default="5")
-    # parser.add_argument("--save_dir", "-s", type=str, default="/data/jh/detection_dataset/240924_dataset")
-    parser.add_argument("--save_dir", "-s", type=str, default="/home/ai04/jh/codes/240923_additional_data/test_data")
+    # parser.add_argument("--save_dir", "-s", type=str, default="/data/det_data/240924_dataset")
+    parser.add_argument("--save_dir", "-s", type=str, default="/home/ai04/jh/codes/make_yolo_train_data/test_imgs")
     parser.add_argument("--server", "-v", type=str, default="main", help="dev or main")
     parser.add_argument("--workers", "-w", type=int, default=8)
     parser.add_argument("--thr", type=float, default=None)
