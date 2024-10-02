@@ -165,3 +165,5 @@ notebooks/
 test*/
 output/
 .vscode/
+*.pkl
+*.png
